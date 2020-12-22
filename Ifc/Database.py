@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import time
+import re
 
 from Ifc.IfcBase import STEPHeader
 from Ifc.Misc import StatementFileReader, parse_entity
@@ -27,52 +28,58 @@ class Database(StatementFileReader):
         self.reset_state()
 
         # read format statement
-        s = self.read_statement(permit_eof=False)
-        if s != "ISO-10303-21":
-            raise SyntaxError("Unknown format '{fmt}'".format(fmt=s))
+        statement = self.read_statement(permit_eof=False)
+        if statement != "ISO-10303-21":
+            raise SyntaxError("Unknown format '{fmt}'".format(fmt=statement))
 
         # read everything until "DATA"
         in_header = False
         self.header = STEPHeader()
         while True:
-            s = self.read_statement(permit_eof=False)
-            if s == "DATA":
+            statement = self.read_statement(permit_eof=False)
+            if statement == "DATA":
                 break
 
-            if s == "HEADER":
+            if statement == "HEADER":
                 in_header = True
-            elif s == "ENDSEC":
+            elif statement == "ENDSEC":
                 in_header = False
             elif in_header:
                 # parse the statement and use it as header definition
-                e = parse_entity(s)
+                e = parse_entity(statement)
                 self.header.add(e)
 
         last_printout_time = time.time()
         # read all entities from the input
         while True:
-            s = self.read_statement()
-            if s == None:
+            statement = self.read_statement()
+            if statement == None:
                 break
-            # print "Statement: {s}".format(s=s)
+            # print "Statement: {statement}".format(statement=statement)
 
-            if s == "ENDSEC":
+            if statement == "ENDSEC":
                 break
 
             # split to 'Index=Entity'
-            equal_pos = s.find("=")
-            if s[0] != "#" or equal_pos == -1:
-                raise SyntaxError("Invalid entity definition '{val}'".format(val=s))
+            equal_pos = statement.find("=")
+            if statement[0] != "#" or equal_pos == -1:
+                raise SyntaxError("Invalid entity definition '{val}'".format(val=statement))
 
-            index = int(s[1:equal_pos])
-            entity = parse_entity(s[equal_pos + 1:])
+            index = int(statement[1:equal_pos])
 
-            # START EDIT - AMi 20201210
-            entity.code_block = s
-            # END EDIT
+            expression = statement[equal_pos + 1:].strip()
 
-            if index > 0:
-                self.entities[index] = entity
+            if self.__expression_is_complex_entity_instance(expression=expression):
+                self.__process_complex_entity(
+                    statement=statement,
+                    expression=expression,
+                    index=index)
+
+            else:
+                self.__process_simple_entity(
+                    statement=statement,
+                    expression=expression,
+                    index=index)
 
             now = time.time()
             if (last_printout_time + 1) <= now:
@@ -84,4 +91,63 @@ class Database(StatementFileReader):
 
         self.fd.close()
 
-# vim: set sw=4 ts=4 et:
+    # vim: set sw=4 ts=4 et:
+
+    def __process_complex_entity(
+            self,
+            statement: str,
+            expression: str,
+            index: int):
+        simple_entity_instances = \
+            self.__get_all_simple_entity_instances_in_compex_entity_instance(
+                expression=expression)
+
+        for simple_entity_instance in simple_entity_instances:
+            entity = parse_entity(simple_entity_instance)
+
+            entity.code_block = \
+                statement
+
+            if index > 0:
+                self.entities[index] = entity
+
+    def __process_simple_entity(
+            self,
+            statement: str,
+            expression: str,
+            index: int):
+        entity = \
+            parse_entity(
+                expression)
+
+        entity.code_block = \
+            statement
+
+        if index > 0:
+            self.entities[index] = entity
+
+    def __expression_is_complex_entity_instance(
+            self,
+            expression: str) \
+            -> bool:
+        if expression[0] == '(' and expression[-1] == ')' and len(expression) > 2:
+            if expression[1] == '*':
+                return False
+            else:
+                return True
+        else:
+            return \
+                False
+
+    def __get_all_simple_entity_instances_in_compex_entity_instance(
+            self,
+            expression: str) \
+            -> list:
+        complex_entity_instane_pattern = re.compile(pattern='[^()]+\([^\()]*\)')
+
+        simple_entity_instances = \
+            complex_entity_instane_pattern.findall(
+                string=expression)
+
+        return \
+            simple_entity_instances
