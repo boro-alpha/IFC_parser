@@ -152,11 +152,13 @@ class Database(StatementFileReader):
     def __get_all_simple_entity_instances_in_compex_entity_instance(
             expression: str) \
             -> list:
-        complex_entity_instane_pattern = re.compile(pattern='[^()]+\([^\()]*\)')
+        truncated_expression = expression[1:-1]
+
+        complex_entity_instane_pattern = re.compile(pattern='[A-Z_]+\(+[\s\S]*?\)+')
 
         simple_entity_instances = \
             complex_entity_instane_pattern.findall(
-                string=expression)
+                string=truncated_expression)
 
         return \
             simple_entity_instances
