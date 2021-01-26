@@ -71,22 +71,22 @@ class Entity:
                 break
 
             # try catching the section headers
-            if s.startswith("INVERSE "):
+            if s.startswith("INVERSE"):
                 current_section = "INVERSE"
                 s = s[8:]
                 continue
 
-            if s.startswith("DERIVE "):
+            if s.startswith("DERIVE"):
                 current_section = "DERIVE"
                 s = s[7:]
                 continue
 
-            if s.startswith("UNIQUE "):
+            if s.startswith("UNIQUE"):
                 current_section = "UNIQUE"
                 s = s[7:]
                 continue
 
-            if s.startswith("WHERE "):
+            if s.startswith("WHERE"):
                 current_section = "WHERE"
                 s = s[6:]
                 continue
